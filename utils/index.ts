@@ -14,54 +14,65 @@
  *
  * You should have received a copy of the GNU General Public License
  * along with this program.  If not, see <https://www.gnu.org/licenses/>.
-*/
+ */
 
 import { Settings } from "@api/Settings";
 import { findStoreLazy } from "@webpack";
-import { ChannelStore, SelectedChannelStore, UserStore } from "@webpack/common";
+import { ChannelStore, SelectedChannelStore, UserStore } from "@webpack/common"
 
-import { settings } from "../index";
+import { settings, Flogger } from "../index";
 import { loggedMessages } from "../LoggedMessageManager";
 import { LoggedMessageJSON } from "../types";
-import { findLastIndex, getGuildIdByChannel } from "./misc";
+import { findLastIndex, getGuildIdByChannel } from "./misc"
 
 export * from "./cleanUp";
-export * from "./misc";
-
+export * from "./misc"
 
 // stolen from mlv2
 // https://github.com/1Lighty/BetterDiscordPlugins/blob/master/Plugins/MessageLoggerV2/MessageLoggerV2.plugin.js#L2367
-interface Id { id: string, time: number; }
+interface Id {
+    id: string;
+    time: number;
+}
 export const DISCORD_EPOCH = 14200704e5;
-export function reAddDeletedMessages(messages: LoggedMessageJSON[], deletedMessages: string[], channelStart: boolean, channelEnd: boolean) {
+export function reAddDeletedMessages(
+    messages: LoggedMessageJSON[],
+    deletedMessages: string[],
+    channelStart: boolean,
+    channelEnd: boolean
+) {
     if (!messages.length || !deletedMessages?.length) return;
     const IDs: Id[] = [];
-    const savedIDs: Id[] = [];
+    const savedIDs: Id[] = []
 
     for (let i = 0, len = messages.length; i < len; i++) {
         const { id } = messages[i];
-        IDs.push({ id: id, time: (parseInt(id) / 4194304) + DISCORD_EPOCH });
+        IDs.push({ id: id, time: parseInt(id) / 4194304 + DISCORD_EPOCH });
     }
     for (let i = 0, len = deletedMessages.length; i < len; i++) {
         const id = deletedMessages[i];
         const record = loggedMessages[id];
         if (!record) continue;
-        savedIDs.push({ id: id, time: (parseInt(id) / 4194304) + DISCORD_EPOCH });
+        savedIDs.push({ id: id, time: parseInt(id) / 4194304 + DISCORD_EPOCH });
     }
     savedIDs.sort((a, b) => a.time - b.time);
     if (!savedIDs.length) return;
     const { time: lowestTime } = IDs[IDs.length - 1];
     const [{ time: highestTime }] = IDs;
-    const lowestIDX = channelEnd ? 0 : savedIDs.findIndex(e => e.time > lowestTime);
+    const lowestIDX = channelEnd
+        ? 0
+        : savedIDs.findIndex((e) => e.time > lowestTime);
     if (lowestIDX === -1) return;
-    const highestIDX = channelStart ? savedIDs.length - 1 : findLastIndex(savedIDs, e => e.time < highestTime);
+    const highestIDX = channelStart
+        ? savedIDs.length - 1
+        : findLastIndex(savedIDs, (e) => e.time < highestTime);
     if (highestIDX === -1) return;
     const reAddIDs = savedIDs.slice(lowestIDX, highestIDX + 1);
     reAddIDs.push(...IDs);
     reAddIDs.sort((a, b) => b.time - a.time);
     for (let i = 0, len = reAddIDs.length; i < len; i++) {
         const { id } = reAddIDs[i];
-        if (messages.findIndex(e => e.id === id) !== -1) continue;
+        if (messages.findIndex((e) => e.id === id) !== -1) continue;
         const record = loggedMessages[id];
         if (!record.message) continue;
         messages.splice(i, 0, record.message);
@@ -69,107 +80,215 @@ export function reAddDeletedMessages(messages: LoggedMessageJSON[], deletedMessa
 }
 
 interface ShouldIgnoreArguments {
-    channelId?: string,
-    authorId?: string,
+    channelId: string;
+    authorId: string;
     guildId?: string;
-    flags?: number,
-    bot?: boolean;
+    flags: number;
+    bot: boolean;
     ghostPinged?: boolean;
     isCachedByUs?: boolean;
+    content?: string;
 }
 
-const EPHEMERAL = 64;
+const EPHEMERAL = 64
 
-const UserGuildSettingsStore = findStoreLazy("UserGuildSettingsStore");
+const UserGuildSettingsStore = findStoreLazy("UserGuildSettingsStore")
 
 /**
-  * the function `shouldIgnore` evaluates whether a message should be ignored or kept, following a priority hierarchy: User > Channel > Server.
-  * In this hierarchy, whitelisting takes priority; if any element (User, Channel, or Server) is whitelisted, the message is kept.
-  * However, if a higher-priority element, like a User, is blacklisted, it will override the whitelisting status of a lower-priority element, such as a Server, causing the message to be ignored.
-  * @param {ShouldIgnoreArguments} args - An object containing the message details.
-  * @returns {boolean} - True if the message should be ignored, false if it should be kept.
-*/
-export function shouldIgnore({ channelId, authorId, guildId, flags, bot, ghostPinged, isCachedByUs }: ShouldIgnoreArguments): boolean {
-    const isEphemeral = ((flags ?? 0) & EPHEMERAL) === EPHEMERAL;
-    if (isEphemeral) return true; // ignore
+ * the function `shouldIgnore` evaluates whether a message should be ignored or kept, following a priority hierarchy: User > Channel > Server.
+ * In this hierarchy, whitelisting takes priority; if any element (User, Channel, or Server) is whitelisted, the message is kept.
+ * However, if a higher-priority element, like a User, is blacklisted, it will override the whitelisting status of a lower-priority element, such as a Server, causing the message to be ignored.
+ * @param {ShouldIgnoreArguments} args - An object containing the message details.
+ * @returns {boolean} - True if the message should be ignored, false if it should be kept.
+ */
 
-    if (channelId && guildId == null)
-        guildId = getGuildIdByChannel(channelId);
+export function shouldIgnore({
+    channelId,
+    authorId,
+    guildId,
+    flags,
+    bot,
+    ghostPinged,
+    isCachedByUs,
+    content,
+}: ShouldIgnoreArguments): boolean {
+    const isEphemeral = ((flags ?? 0) & EPHEMERAL) === EPHEMERAL;
+    if (isEphemeral) return true
 
     const myId = UserStore.getCurrentUser().id;
-    const { ignoreUsers, ignoreChannels, ignoreGuilds } = Settings.plugins.MessageLogger;
-    const { ignoreBots, ignoreSelf } = settings.store;
-
-    if (ignoreSelf && authorId === myId)
-        return true; // ignore
-    if (settings.store.alwaysLogDirectMessages && ChannelStore.getChannel(channelId ?? "-1")?.isDM?.())
-        return false; // keep
-
-    const shouldLogCurrentChannel = settings.store.alwaysLogCurrentChannel && SelectedChannelStore.getChannelId() === channelId;
+    const {
+        whitelistedIds,
+        blacklistedIds,
+        blacklistedWords,
+        alwaysLogDirectMessages,
+        alwaysLogCurrentChannel,
+        ignoreBots,
+        ignoreSelf,
+        ignoreMutedGuilds,
+        ignoreMutedCategories,
+        ignoreMutedChannels,
+        cacheMessagesFromServers,
+    } = settings.store
 
     const ids = [authorId, channelId, guildId];
-
-    const whitelistedIds = settings.store.whitelistedIds.split(",");
-
-    const isWhitelisted = settings.store.whitelistedIds.split(",").some(e => ids.includes(e));
+    const isWhitelisted = whitelistedIds
+        .split(",")
+        .some((e: string | undefined) => ids.includes(e));
+    const isBlacklisted = blacklistedIds
+        .split(",")
+        .some((e: string | undefined) => ids.includes(e));
     const isAuthorWhitelisted = whitelistedIds.includes(authorId!);
     const isChannelWhitelisted = whitelistedIds.includes(channelId!);
     const isGuildWhitelisted = whitelistedIds.includes(guildId!);
+    const isAuthorBlacklisted = blacklistedIds.includes(authorId!);
+    const isChannelBlacklisted = blacklistedIds.includes(channelId!)
 
-    const blacklistedIds = [
-        ...settings.store.blacklistedIds.split(","),
-        ...(ignoreUsers ?? []).split(","),
-        ...(ignoreChannels ?? []).split(","),
-        ...(ignoreGuilds ?? []).split(",")
-    ];
+    const blackListedWords = blacklistedWords.split(',').map(w => w.trim().toLowerCase()).filter(w => w.length > 0)
 
-    const isBlacklisted = blacklistedIds.some(e => ids.includes(e));
-    const isAuthorBlacklisted = blacklistedIds.includes(authorId);
-    const isChannelBlacklisted = blacklistedIds.includes(channelId);
+    if (content && blackListedWords.some(w => content.trim().toLowerCase().includes(w))) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Ignored words in content",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+            `\nBlacklist:\n`,
+            blackListedWords
+        );
+        return true;
+    }
 
+    if (ignoreSelf && authorId === myId) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Sent by self",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+        );
+        return true;
+    }
 
-    const shouldIgnoreMutedGuilds = settings.store.ignoreMutedGuilds;
-    const shouldIgnoreMutedCategories = settings.store.ignoreMutedCategories;
-    const shouldIgnoreMutedChannels = settings.store.ignoreMutedChannels;
+    if (
+        alwaysLogDirectMessages &&
+        ChannelStore.getChannel(channelId ?? "-1")?.isDM?.()
+    )
+        return false;
 
-    if ((ignoreBots && bot) && !isAuthorWhitelisted) return true; // ignore
+    if (ignoreBots && bot && !isAuthorWhitelisted) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Bot ignored",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+        );
+        return true;
+    }
 
-    if (ghostPinged) return false; // keep
+    if (ghostPinged) return false;
+    if (isAuthorWhitelisted || isChannelWhitelisted || isWhitelisted || alwaysLogCurrentChannel) return false;
 
-    // author has highest priority
-    if (isAuthorWhitelisted) return false; // keep
-    if (isAuthorBlacklisted) return true; // ignore
+    if (isAuthorBlacklisted || isChannelBlacklisted || isBlacklisted) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Blacklisted author",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+            `\nBlacklists: ${blacklistedIds}`,
+        );
+        return true;
+    }
 
-    if (isChannelWhitelisted) return false; // keep
-    if (isChannelBlacklisted) return true; // ignore
+    if (
+        isCachedByUs &&
+        !cacheMessagesFromServers &&
+        guildId != null &&
+        !isGuildWhitelisted
+    ) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: None",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+        );
+        return true;
+    }
 
-    if (shouldLogCurrentChannel) return false; // keep
+    if (
+        guildId != null &&
+        ignoreMutedGuilds &&
+        UserGuildSettingsStore.isMuted(guildId)
+    ) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Muted guild ignored",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+            `\nIgnoreMutedGuilds: ${ignoreMutedGuilds}`,
+        );
+        return true;
+    }
 
-    if (isWhitelisted) return false; // keep
+    if (
+        channelId != null &&
+        ignoreMutedCategories &&
+        UserGuildSettingsStore.isCategoryMuted(guildId, channelId)
+    ) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Muted catogory ignored",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+            `\nIgnoreMutedChannels: ${ignoreMutedChannels}`,
+        );
+        return true;
+    }
 
-    if (isCachedByUs && (!settings.store.cacheMessagesFromServers && guildId != null && !isGuildWhitelisted)) return true; // ignore
+    if (
+        channelId != null &&
+        ignoreMutedChannels &&
+        UserGuildSettingsStore.isChannelMuted(guildId, channelId)
+    ) {
+        Flogger.log(
+            "shouldIgnore",
+            "\nReason: Muted channel ignored",
+            `\nGuild: ${guildId}`,
+            `\nChannel: ${channelId}`,
+            `\nContent: ${content}`,
+            `\nIgnoreMutedChannels: ${ignoreMutedChannels}`,
+        );
+        return true;
+    }
 
-    if (isBlacklisted && (!isAuthorWhitelisted || !isChannelWhitelisted)) return true; // ignore
+    Flogger.log(
+        "shouldIgnore",
+        "\nReason: No conditon",
+        `\nGuild: ${guildId}`,
+        `\nChannel: ${channelId}`,
+        `\nContent: ${content}`,
+    );
 
-    if (guildId != null && shouldIgnoreMutedGuilds && UserGuildSettingsStore.isMuted(guildId)) return true; // ignore
-    if (channelId != null && shouldIgnoreMutedCategories && UserGuildSettingsStore.isCategoryMuted(guildId, channelId)) return true; // ignore
-    if (channelId != null && shouldIgnoreMutedChannels && UserGuildSettingsStore.isChannelMuted(guildId, channelId)) return true; // ignore
-
-    return false; // keep;
+    return false;
 }
 
-export type ListType = "blacklistedIds" | "whitelistedIds";
+export type ListType = "blacklistedIds" | "whitelistedIds"
 
 export function addToXAndRemoveFromOpposite(list: ListType, id: string) {
-    const oppositeListType = list === "blacklistedIds" ? "whitelistedIds" : "blacklistedIds";
-    removeFromX(oppositeListType, id);
+    const oppositeListType =
+        list === "blacklistedIds" ? "whitelistedIds" : "blacklistedIds";
+    removeFromX(oppositeListType, id)
 
     addToX(list, id);
 }
 
 export function addToX(list: ListType, id: string) {
     const items = settings.store[list] ? settings.store[list].split(",") : [];
-    items.push(id);
+    items.push(id)
 
     settings.store[list] = items.join(",");
 }
