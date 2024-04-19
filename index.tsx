@@ -1,26 +1,14 @@
 /*
- * Vencord, a modification for Discord's desktop app
- * Copyright (c) 2023 Vendicated and contributors
- *
- * This program is free software: you can redistribute it and/or modify
- * it under the terms of the GNU General Public License as published by
- * the Free Software Foundation, either version 3 of the License, or
- * (at your option) any later version.
- *
- * This program is distributed in the hope that it will be useful,
- * but WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
- * GNU General Public License for more details.
- *
- * You should have received a copy of the GNU General Public License
- * along with this program.  If not, see <https://www.gnu.org/licenses/>.
+ * Vencord, a Discord client mod
+ * Copyright (c) 2024 Vendicated and contributors
+ * SPDX-License-Identifier: GPL-3.0-or-later
  */
 
-export const VERSION = "3.0.0"
+export const VERSION = "3.0.0";
 
-export const Native = getNative()
+export const Native = getNative();
 
-import "./styles.css"
+import "./styles.css";
 
 import {
     addContextMenuPatch,
@@ -29,7 +17,6 @@ import {
 } from "@api/ContextMenu";
 import { definePluginSettings, Settings } from "@api/Settings";
 import ErrorBoundary from "@components/ErrorBoundary";
-import { Devs } from "@utils/constants";
 import { Logger } from "@utils/Logger";
 import definePlugin, { OptionType } from "@utils/types";
 import { findByPropsLazy } from "@webpack";
@@ -43,7 +30,7 @@ import {
     React,
     Toasts,
     UserStore,
-} from "@webpack/common"
+} from "@webpack/common";
 
 import { OpenLogsButton } from "./components/LogsButton";
 import { openLogModal } from "./components/LogsModal";
@@ -85,19 +72,19 @@ import { doesMatch } from "./utils/parseQuery";
 import * as imageUtils from "./utils/saveImage";
 import * as ImageManager from "./utils/saveImage/ImageManager";
 import { downloadLoggedMessages } from "./utils/settingsUtils";
-import { checkForUpdatesAndNotify } from "./utils/updater"
+import { checkForUpdatesAndNotify } from "./utils/updater";
 
-export const Flogger = new Logger("MessageLoggerEnhanced", "#f26c6c")
+export const Flogger = new Logger("MessageLoggerEnhanced", "#f26c6c");
 
-export const cacheSentMessages = new LimitedMap<string, LoggedMessageJSON>()
+export const cacheSentMessages = new LimitedMap<string, LoggedMessageJSON>();
 
-const cacheThing = findByPropsLazy("commit", "getOrCreate")
+const cacheThing = findByPropsLazy("commit", "getOrCreate");
 
 const handledMessageIds = new Set();
 async function messageDeleteHandler(
-    payload: MessageDeletePayload & { isBulk: boolean; }
+    payload: MessageDeletePayload & { isBulk: boolean }
 ) {
-    if (payload.mlDeleted) return
+    if (payload.mlDeleted) return;
 
     if (handledMessageIds.has(payload.id)) {
         Flogger.debug("messageDeleteHandler", "Skipping duplicate", payload.id);
@@ -105,11 +92,11 @@ async function messageDeleteHandler(
     }
 
     try {
-        handledMessageIds.add(payload.id)
+        handledMessageIds.add(payload.id);
 
         const cachedMessage =
-            cacheSentMessages.get(`${payload.channelId},${payload.id}`) ??
-            MessageStore.getMessage(payload.channelId, payload.id)
+			cacheSentMessages.get(`${payload.channelId},${payload.id}`) ??
+			MessageStore.getMessage(payload.channelId, payload.id);
 
         if (!cachedMessage) {
             return Flogger.warn(
@@ -119,7 +106,7 @@ async function messageDeleteHandler(
             );
         }
 
-        const deletedMessage = { ...cachedMessage, deleted: true }
+        const deletedMessage = { ...cachedMessage, deleted: true };
 
         if (
             shouldIgnore({
@@ -142,20 +129,20 @@ async function messageDeleteHandler(
             });
         }
 
-        Flogger.debug("Message Deleted", payload)
+        Flogger.debug("Message Deleted", payload);
 
         if (
             deletedMessage == null ||
-            deletedMessage.channel_id == null ||
-            !deletedMessage.deleted
+			deletedMessage.channel_id == null ||
+			!deletedMessage.deleted
         )
             return;
 
         Flogger.debug("Adding deleted message", deletedMessage);
         await addMessage(
-            deletedMessage as any,
-            "deletedMessages",
-            payload.isBulk ?? false
+			deletedMessage as any,
+			"deletedMessages",
+			payload.isBulk ?? false
         );
     } finally {
         handledMessageIds.delete(payload.id);
@@ -209,12 +196,12 @@ async function messageUpdateHandler(payload: MessageUpdatePayload) {
     let message = MessageStore.getMessage(
         payload.message.channel_id,
         payload.message.id
-    ) as LoggedMessage | LoggedMessageJSON | null
+    ) as LoggedMessage | LoggedMessageJSON | null;
 
     if (
         cachedMessage != null &&
-        payload.message.content != null &&
-        cachedMessage.content !== payload.message.content
+		payload.message.content != null &&
+		cachedMessage.content !== payload.message.content
     ) {
         message = {
             ...cachedMessage,
@@ -226,7 +213,7 @@ async function messageUpdateHandler(payload: MessageUpdatePayload) {
                     timestamp: new Date().toISOString(),
                 },
             ],
-        }
+        };
 
         cacheSentMessages.set(
             `${payload.message.channel_id},${payload.message.id}`,
@@ -236,15 +223,15 @@ async function messageUpdateHandler(payload: MessageUpdatePayload) {
 
     if (
         message == null ||
-        message.channel_id == null ||
-        message.editHistory == null ||
-        message.editHistory.length === 0
+		message.channel_id == null ||
+		message.editHistory == null ||
+		message.editHistory.length === 0
     )
         return Flogger.debug(
             "messageUpdateHandler",
             "Message non-existant, ignored",
             payload
-        )
+        );
 
     Flogger.debug("Updating message", message, payload);
     await addMessage(message, "editedMessages");
@@ -259,7 +246,7 @@ function messageCreateHandler(payload: MessageCreatePayload) {
         ];
         const isWhitelisted = settings.store.whitelistedIds
             .split(",")
-            .some((e) => ids.includes(e));
+            .some(e => ids.includes(e));
         if (!isWhitelisted) {
             return;
         }
@@ -282,13 +269,13 @@ function messageLoadSuccess(payload: LoadMessagePayload) {
     const recordIDs: string[] = [
         ...(deletedMessages || []),
         ...(editedMessages || []),
-    ]
+    ];
 
     for (let i = 0; i < payload.messages.length; ++i) {
         const recievedMessage = payload.messages[i];
-        const record = loggedMessages[recievedMessage.id]
+        const record = loggedMessages[recievedMessage.id];
 
-        if (record == null || record.message == null) continue
+        if (record == null || record.message == null) continue;
 
         if (record.message.editHistory!.length !== 0) {
             payload.messages[i].editHistory = record.message.editHistory;
@@ -297,12 +284,12 @@ function messageLoadSuccess(payload: LoadMessagePayload) {
 
     const fetchUser = (id: string) =>
         UserStore.getUser(id) ||
-        payload.messages.find((e) => e.author.id === id)
+		payload.messages.find(e => e.author.id === id);
 
     for (let i = 0, len = recordIDs.length; i < len; i++) {
         const id = recordIDs[i];
         if (!loggedMessages[id]) continue;
-        const { message } = loggedMessages[id] as { message: LoggedMessageJSON; }
+        const { message } = loggedMessages[id] as { message: LoggedMessageJSON };
 
         for (let j = 0, len2 = message.mentions.length; j < len2; j++) {
             const user = message.mentions[j];
@@ -312,8 +299,8 @@ function messageLoadSuccess(payload: LoadMessagePayload) {
         }
 
         const author = fetchUser(message.author.id);
-        if (!author) continue
-            ; (message.author as any) = cleanupUserObject(author);
+        if (!author) continue;
+        (message.author as any) = cleanupUserObject(author);
     }
 
     reAddDeletedMessages(
@@ -330,7 +317,7 @@ export const settings = definePluginSettings({
         description: "Check for update",
         component: () => (
             <Button onClick={() => openUpdaterModal()}>
-                Check For Updates
+				Check For Updates
             </Button>
         ),
     },
@@ -356,7 +343,7 @@ export const settings = definePluginSettings({
         default: false,
         type: OptionType.BOOLEAN,
         description:
-            "Usually message logger only logs from whitelisted ids and dms, enabling this would mean it would log messages from all servers as well. Note that this may cause the cache to exceed its limit, resulting in some messages being missed. If you are in a lot of servers, this may significantly increase the chances of messages being logged, which can result in a large message record and the inclusion of irrelevant messages.",
+			"Usually message logger only logs from whitelisted ids and dms, enabling this would mean it would log messages from all servers as well. Note that this may cause the cache to exceed its limit, resulting in some messages being missed. If you are in a lot of servers, this may significantly increase the chances of messages being logged, which can result in a large message record and the inclusion of irrelevant messages.",
     },
 
     autoCheckForUpdates: {
@@ -370,7 +357,7 @@ export const settings = definePluginSettings({
         description: "Whether to ignore messages by bots",
         default: false,
         onChange() {
-    // we will be handling the ignoreBots now (enabled or not) so the original messageLogger shouldnt
+            // we will be handling the ignoreBots now (enabled or not) so the original messageLogger shouldnt
             Settings.plugins.MessageLogger.ignoreBots = false;
         },
     },
@@ -388,21 +375,21 @@ export const settings = definePluginSettings({
         default: false,
         type: OptionType.BOOLEAN,
         description:
-            "Messages in muted guilds will not be logged. Whitelisted users/channels in muted guilds will still be logged.",
+			"Messages in muted guilds will not be logged. Whitelisted users/channels in muted guilds will still be logged.",
     },
 
     ignoreMutedCategories: {
         default: false,
         type: OptionType.BOOLEAN,
         description:
-            "Messages in channels belonging to muted categories will not be logged. Whitelisted users/channels in muted guilds will still be logged.",
+			"Messages in channels belonging to muted categories will not be logged. Whitelisted users/channels in muted guilds will still be logged.",
     },
 
     ignoreMutedChannels: {
         default: false,
         type: OptionType.BOOLEAN,
         description:
-            "Messages in muted channels will not be logged. Whitelisted users/channels in muted guilds will still be logged.",
+			"Messages in muted channels will not be logged. Whitelisted users/channels in muted guilds will still be logged.",
     },
 
     alwaysLogDirectMessages: {
@@ -415,35 +402,35 @@ export const settings = definePluginSettings({
         default: true,
         type: OptionType.BOOLEAN,
         description:
-            "Always log current selected channel. Blacklisted channels/users will still be ignored.",
+			"Always log current selected channel. Blacklisted channels/users will still be ignored.",
     },
 
     hideMessageFromMessageLoggers: {
         default: false,
         type: OptionType.BOOLEAN,
         description:
-            "When enabled, a context menu button will be added to messages to allow you to delete messages without them being logged by other loggers. Might not be safe, use at your own risk.",
+			"When enabled, a context menu button will be added to messages to allow you to delete messages without them being logged by other loggers. Might not be safe, use at your own risk.",
     },
 
     messageLimit: {
         default: 200,
         type: OptionType.NUMBER,
         description:
-            "Maximum number of messages to save. Older messages are deleted when the limit is reached. 0 means there is no limit",
+			"Maximum number of messages to save. Older messages are deleted when the limit is reached. 0 means there is no limit",
     },
 
     imagesLimit: {
         default: 100,
         type: OptionType.NUMBER,
         description:
-            "Maximum number of images to save. Older images are deleted when the limit is reached. 0 means there is no limit",
+			"Maximum number of images to save. Older images are deleted when the limit is reached. 0 means there is no limit",
     },
 
     cacheLimit: {
         default: 1000,
         type: OptionType.NUMBER,
         description:
-            "Maximum number of messages to store in the cache. Older messages are deleted when the limit is reached. This helps reduce memory usage and improve performance. 0 means there is no limit",
+			"Maximum number of messages to store in the cache. Older messages are deleted when the limit is reached. This helps reduce memory usage and improve performance. 0 means there is no limit",
     },
 
     whitelistedIds: {
@@ -462,7 +449,7 @@ export const settings = definePluginSettings({
         default: "",
         type: OptionType.STRING,
         description:
-            "Blacklisted words (seperate with commas. eg: `word1, word2`)",
+			"Blacklisted words (seperate with commas. eg: `word1, word2`)",
     },
 
     imageCacheDir: {
@@ -498,14 +485,14 @@ export const settings = definePluginSettings({
             <Button
                 disabled={
                     IS_WEB ||
-                    settings.store.imageCacheDir == null ||
-                    settings.store.imageCacheDir === DEFAULT_IMAGE_CACHE_DIR
+					settings.store.imageCacheDir == null ||
+					settings.store.imageCacheDir === DEFAULT_IMAGE_CACHE_DIR
                 }
                 onClick={() =>
                     Native.showItemInFolder(settings.store.imageCacheDir)
                 }
             >
-                Open Image Cache Folder
+				Open Image Cache Folder
             </Button>
         ),
     },
@@ -529,16 +516,21 @@ export const settings = definePluginSettings({
                     })
                 }
             >
-                Clear Logs
+				Clear Logs
             </Button>
         ),
     },
-})
+});
 
 export default definePlugin({
-    name: "MessageLoggerEnhanced",
-    authors: [Devs.Ruri],
-    description: "Forked by Ruri",
+    name: "MessageLoggerPlus",
+    authors: [
+        {
+            name: "Ruri",
+            id: 859347896536399892n,
+        },
+    ],
+    description: "Modified by Ruri",
     dependencies: ["MessageLogger"],
 
     patches: [
@@ -555,7 +547,7 @@ export default definePlugin({
             replacement: {
                 match: /(attachments: \i\(.{1,500})deleted:.{1,50},editHistory:.{1,30},/,
                 replace:
-                    "$1deleted: $self.getDeleted(...arguments),editHistory: $self.getEdited(...arguments),",
+					"$1deleted: $self.getDeleted(...arguments),editHistory: $self.getEdited(...arguments),",
             },
         },
 
@@ -572,7 +564,7 @@ export default definePlugin({
             replacement: {
                 match: /(cozyMessage.{1,50},)childrenHeader:/,
                 replace:
-                    "$1childrenAccessories:arguments[0].childrenAccessories || null,childrenHeader:",
+					"$1childrenAccessories:arguments[0].childrenAccessories || null,childrenHeader:",
             },
         },
 
@@ -582,7 +574,7 @@ export default definePlugin({
             replacement: {
                 match: /(\i=(\i)=>{)(.{1,250}isSingleMosaicItem)/,
                 replace:
-                    "$1 let forceUpdate=Vencord.Util.useForceUpdater();$self.patchAttachments($2,forceUpdate);$3",
+					"$1 let forceUpdate=Vencord.Util.useForceUpdater();$self.patchAttachments($2,forceUpdate);$3",
             },
         },
 
@@ -600,7 +592,7 @@ export default definePlugin({
             replacement: {
                 match: /\i\.(?:default\.)?focusMessage\(/,
                 replace:
-                    "!(arguments[0]?.message?.deleted || arguments[0]?.message?.editHistory?.length > 0) && $&",
+					"!(arguments[0]?.message?.deleted || arguments[0]?.message?.editHistory?.length > 0) && $&",
             },
         },
 
@@ -621,13 +613,13 @@ export default definePlugin({
         },
     },
 
-    addIconToToolBar(e: { toolbar: React.ReactNode[] | React.ReactNode; }) {
+    addIconToToolBar(e: { toolbar: React.ReactNode[] | React.ReactNode }) {
         if (Array.isArray(e.toolbar))
             return e.toolbar.push(
                 <ErrorBoundary noop={true}>
                     <OpenLogsButton />
                 </ErrorBoundary>
-            )
+            );
 
         e.toolbar = [
             <ErrorBoundary noop={true}>
@@ -658,8 +650,8 @@ export default definePlugin({
         const editHistory = m2?.editHistory;
         if (
             editHistory == null &&
-            m1?.editHistory != null &&
-            m1.editHistory.length > 0
+			m1?.editHistory != null &&
+			m1.editHistory.length > 0
         )
             return m1.editHistory.map(mapEditHistory);
         return editHistory;
@@ -667,20 +659,20 @@ export default definePlugin({
 
     attachments: new Map<string, LoggedAttachment>(),
     patchAttachments(
-        props: { attachment: LoggedAttachment; message: LoggedMessage; },
+        props: { attachment: LoggedAttachment; message: LoggedMessage },
         forceUpdate: () => void
     ) {
         const { attachment, message } = props;
         if (
             !message.deleted ||
-            !LoggedMessageManager.hasMessageInLogs(message.id)
+			!LoggedMessageManager.hasMessageInLogs(message.id)
         )
             return;
-        Flogger.log("ignoring", message.id)
+        Flogger.log("ignoring", message.id);
 
         if (this.attachments.has(attachment.id))
             return (props.attachment = this.attachments.get(attachment.id)!);
-        Flogger.log("blobUrl already exists")
+        Flogger.log("blobUrl already exists");
 
         imageUtils
             .getAttachmentBlobUrl(attachment)
@@ -699,9 +691,9 @@ export default definePlugin({
                     blobUrl
                 );
                 // we need to copy because changing this will change the attachment for the message in the logs
-                const attachmentCopy = { ...attachment }
+                const attachmentCopy = { ...attachment };
 
-                attachmentCopy.oldUrl = attachment.url
+                attachmentCopy.oldUrl = attachment.url;
 
                 const finalBlobUrl = blobUrl + "#";
                 attachmentCopy.blobUrl = finalBlobUrl;
@@ -709,18 +701,18 @@ export default definePlugin({
                 attachmentCopy.proxy_url = finalBlobUrl;
                 this.attachments.set(attachment.id, attachmentCopy);
                 forceUpdate();
-            })
+            });
     },
 
     async checkImage(instance: any) {
         if (
             !instance.props.isBad &&
-            instance.state?.readyState !== "READY" &&
-            instance.props?.src?.startsWith("blob:")
+			instance.state?.readyState !== "READY" &&
+			instance.props?.src?.startsWith("blob:")
         ) {
             if (await doesBlobUrlExist(instance.props.src)) {
                 Flogger.log("image exists", instance.props.src);
-                return instance.setState((e) => ({ ...e, readyState: "READY" }));
+                return instance.setState(e => ({ ...e, readyState: "READY" }));
             }
 
             instance.props.isBad = true;
@@ -735,16 +727,16 @@ export default definePlugin({
     },
 
     async start() {
-    // if (!settings.store.saveMessages)
-    //     clearLogs();
+        // if (!settings.store.saveMessages)
+        //     clearLogs();
 
-        checkForUpdatesAndNotify(settings.store.autoCheckForUpdates)
+        checkForUpdatesAndNotify(settings.store.autoCheckForUpdates);
 
-        Native.init()
+        Native.init();
 
         const { imageCacheDir, logsDir } = await Native.getSettings();
         settings.store.imageCacheDir = imageCacheDir;
-        settings.store.logsDir = logsDir
+        settings.store.logsDir = logsDir;
 
         addContextMenuPatch("message", contextMenuPath);
         addContextMenuPatch("channel-context", contextMenuPath);
@@ -754,8 +746,8 @@ export default definePlugin({
     },
 
     stop() {
-    // if (!settings.store.saveMessages)
-    //     clearLogs();
+        // if (!settings.store.saveMessages)
+        //     clearLogs();
 
         removeContextMenuPatch("message", contextMenuPath);
         removeContextMenuPatch("channel-context", contextMenuPath);
@@ -763,28 +755,28 @@ export default definePlugin({
         removeContextMenuPatch("guild-context", contextMenuPath);
         removeContextMenuPatch("gdm-context", contextMenuPath);
     },
-})
+});
 
 const idFunctions = {
-    Server: (props) => props?.guild?.id,
-    User: (props) => props?.message?.author?.id || props?.user?.id,
-    Channel: (props) => props.message?.channel_id || props.channel?.id,
-} as const
+    Server: props => props?.guild?.id,
+    User: props => props?.message?.author?.id || props?.user?.id,
+    Channel: props => props.message?.channel_id || props.channel?.id,
+} as const;
 
 type idKeys = keyof typeof idFunctions
 
 function renderListOption(listType: ListType, IdType: idKeys, props: any) {
     const id = idFunctions[IdType](props);
-    if (!id) return null
+    if (!id) return null;
 
     const isBlocked = settings.store[listType].includes(id);
     const oppositeListType =
-        listType === "blacklistedIds" ? "whitelistedIds" : "blacklistedIds";
+		listType === "blacklistedIds" ? "whitelistedIds" : "blacklistedIds";
     const isOppositeBlocked = settings.store[oppositeListType].includes(id);
-    const list = listType === "blacklistedIds" ? "Blacklist" : "Whitelist"
+    const list = listType === "blacklistedIds" ? "Blacklist" : "Whitelist";
 
     const addToList = () => addToXAndRemoveFromOpposite(listType, id);
-    const removeFromList = () => removeFromX(listType, id)
+    const removeFromList = () => removeFromX(listType, id);
 
     return (
         <Menu.MenuItem
@@ -803,7 +795,7 @@ function renderListOption(listType: ListType, IdType: idKeys, props: any) {
 
 function renderOpenLogs(idType: idKeys, props: any) {
     const id = idFunctions[idType](props);
-    if (!id) return null
+    if (!id) return null;
 
     return (
         <Menu.MenuItem
@@ -815,9 +807,9 @@ function renderOpenLogs(idType: idKeys, props: any) {
 }
 
 const contextMenuPath: NavContextMenuPatchCallback = (children, props) => {
-    if (!props) return
+    if (!props) return;
 
-    if (!children.some((child) => child?.props?.id === "message-logger")) {
+    if (!children.some(child => child?.props?.id === "message-logger")) {
         children.push(
             <Menu.MenuSeparator />,
             <Menu.MenuItem id="message-logger" label="Message Logger">
@@ -827,34 +819,34 @@ const contextMenuPath: NavContextMenuPatchCallback = (children, props) => {
                     action={() => openLogModal()}
                 />
 
-                {Object.keys(idFunctions).map((IdType) =>
+                {Object.keys(idFunctions).map(IdType =>
                     renderOpenLogs(IdType as idKeys, props)
                 )}
 
                 <Menu.MenuSeparator />
 
-                {Object.keys(idFunctions).map((IdType) => (
+                {Object.keys(idFunctions).map(IdType => (
                     <React.Fragment key={IdType}>
                         {renderListOption(
                             "blacklistedIds",
-                            IdType as idKeys,
-                            props
+							IdType as idKeys,
+							props
                         )}
                         {renderListOption(
                             "whitelistedIds",
-                            IdType as idKeys,
-                            props
+							IdType as idKeys,
+							props
                         )}
                     </React.Fragment>
                 ))}
 
                 {props.navId === "message" &&
-                    (props.message?.deleted ||
-                        props.message?.editHistory?.length > 0) && (
-                        <>
-                            <Menu.MenuSeparator />
-                            <Menu.MenuItem
-                                id="remove-message"
+					(props.message?.deleted ||
+						props.message?.editHistory?.length > 0) && (
+                    <>
+                        <Menu.MenuSeparator />
+                        <Menu.MenuItem
+                            id="remove-message"
                             label={
                                 props.message?.deleted
                                     ? "Remove Message (Permanent)"
@@ -867,59 +859,58 @@ const contextMenuPath: NavContextMenuPatchCallback = (children, props) => {
                                         if (props.message.deleted) {
                                             FluxDispatcher.dispatch({
                                                 type: "MESSAGE_DELETE",
-                                                    channelId:
-                                                        props.message
-                                                            .channel_id,
-                                                    id: props.message.id,
-                                                    mlDeleted: true,
-                                                });
-                                            } else {
-                                                props.message.editHistory = [];
-                                            }
+                                                channelId:
+														props.message.channel_id,
+                                                id: props.message.id,
+                                                mlDeleted: true,
+                                            });
+                                        } else {
+                                            props.message.editHistory = [];
+                                        }
+                                    })
+                                    .catch(() =>
+                                        Toasts.show({
+                                            type: Toasts.Type.FAILURE,
+                                            message:
+													"Failed to remove message",
+                                            id: Toasts.genId(),
                                         })
-                                        .catch(() =>
-                                            Toasts.show({
-                                                type: Toasts.Type.FAILURE,
-                                                message:
-                                                    "Failed to remove message",
-                                                id: Toasts.genId(),
-                                            })
-                                        )
+                                    )
                             }
                         />
                     </>
-                    )}
+                )}
 
                 {settings.store.hideMessageFromMessageLoggers &&
-                    props.navId === "message" &&
-                    props.message?.author?.id ===
-                    UserStore.getCurrentUser().id &&
-                    props.message?.deleted === false && (
-                        <>
-                            <Menu.MenuSeparator />
-                            <Menu.MenuItem
-                                id="hide-from-message-loggers"
-                                label="Delete Message (Hide From Message Loggers)"
-                                color="danger"
+					props.navId === "message" &&
+					props.message?.author?.id ===
+						UserStore.getCurrentUser().id &&
+					props.message?.deleted === false && (
+                    <>
+                        <Menu.MenuSeparator />
+                        <Menu.MenuItem
+                            id="hide-from-message-loggers"
+                            label="Delete Message (Hide From Message Loggers)"
+                            color="danger"
                             action={async () => {
-                                    await MessageActions.deleteMessage(
-                                        props.message.channel_id,
-                                        props.message.id
-                                    );
-                                    MessageActions._sendMessage(
-                                        props.message.channel_id,
-                                        {
-                                            content: "redacted eh",
-                                            tts: false,
-                                            invalidEmojis: [],
-                                            validNonShortcutEmojis: [],
-                                        },
-                                        { nonce: props.message.id }
-                                    );
-                                }}
+                                await MessageActions.deleteMessage(
+                                    props.message.channel_id,
+                                    props.message.id
+                                );
+                                MessageActions._sendMessage(
+                                    props.message.channel_id,
+                                    {
+                                        content: "redacted eh",
+                                        tts: false,
+                                        invalidEmojis: [],
+                                        validNonShortcutEmojis: [],
+                                    },
+                                    { nonce: props.message.id }
+                                );
+                            }}
                         />
                     </>
-                    )}
+                )}
             </Menu.MenuItem>
         );
     }
