@@ -19,6 +19,7 @@
 import { get, set } from "@api/DataStore";
 import { PluginNative } from "@utils/types";
 import { findByPropsLazy, findLazy } from "@webpack";
+<<<<<<< HEAD
 import { ChannelStore, UserStore } from "@webpack/common"
 
 import {
@@ -26,6 +27,12 @@ import {
     MessageLoggerStore,
 } from "../LoggedMessageManager";
 import { LoggedMessage, LoggedMessageJSON } from "../types";
+=======
+import { ChannelStore, moment, UserStore } from "@webpack/common";
+
+import { LOGGED_MESSAGES_KEY, MessageLoggerStore } from "../LoggedMessageManager";
+import { LoggedMessageJSON } from "../types";
+>>>>>>> remote/master
 import { DEFAULT_IMAGE_CACHE_DIR } from "./constants";
 import { DISCORD_EPOCH } from "./index";
 import { memoize } from "./memoize"
@@ -103,9 +110,15 @@ export const messageJsonToMessageClass = memoize(
     // console.time("message populate");
         if (!log?.message) return null
 
+<<<<<<< HEAD
         const message: LoggedMessage = new MessageClass(log.message);
         // @ts-ignore
         message.timestamp = getTimestamp(message.timestamp)
+=======
+    const message: any = new MessageClass(log.message);
+    // @ts-ignore
+    message.timestamp = getTimestamp(message.timestamp);
+>>>>>>> remote/master
 
         const editHistory = message.editHistory?.map(mapEditHistory);
         if (editHistory && editHistory.length > 0) {
@@ -125,7 +138,24 @@ export const messageJsonToMessageClass = memoize(
         // console.timeEnd("message populate");
         return message;
     }
+<<<<<<< HEAD
 )
+=======
+    if (message.editedTimestamp)
+        message.editedTimestamp = getTimestamp(message.editedTimestamp);
+    message.author = new AuthorClass(message.author);
+    message.author.nick = message.author.globalName ?? message.author.username;
+
+    message.embeds = message.embeds.map(e => embedModule.sanitizeEmbed(message.channel_id, message.id, e));
+
+    if (message.poll)
+        message.poll.expiry = moment(message.poll.expiry);
+
+    // console.timeEnd("message populate");
+    return message;
+});
+
+>>>>>>> remote/master
 
 export function parseJSON(json?: string | null) {
     try {

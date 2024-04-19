@@ -81,10 +81,20 @@ export const cacheSentMessages = new LimitedMap<string, LoggedMessageJSON>();
 const cacheThing = findByPropsLazy("commit", "getOrCreate");
 
 const handledMessageIds = new Set();
+<<<<<<< HEAD
 async function messageDeleteHandler(
     payload: MessageDeletePayload & { isBulk: boolean }
 ) {
     if (payload.mlDeleted) return;
+=======
+async function messageDeleteHandler(payload: MessageDeletePayload & { isBulk: boolean; }) {
+    if (payload.mlDeleted) {
+        if (settings.store.permanentlyRemoveLogByDefault)
+            await removeLog(payload.id);
+
+        return;
+    }
+>>>>>>> remote/master
 
     if (handledMessageIds.has(payload.id)) {
         Flogger.debug("messageDeleteHandler", "Skipping duplicate", payload.id);
@@ -405,11 +415,30 @@ export const settings = definePluginSettings({
 			"Always log current selected channel. Blacklisted channels/users will still be ignored.",
     },
 
+    permanentlyRemoveLogByDefault: {
+        default: false,
+        type: OptionType.BOOLEAN,
+        description: "Vencord's base MessageLogger remove log button wiil delete logs permanently",
+    },
+
     hideMessageFromMessageLoggers: {
         default: false,
         type: OptionType.BOOLEAN,
         description:
 			"When enabled, a context menu button will be added to messages to allow you to delete messages without them being logged by other loggers. Might not be safe, use at your own risk.",
+    },
+
+    ShowLogsButton: {
+        default: true,
+        type: OptionType.BOOLEAN,
+        description: "Toggle to whenever show the toolbox or not",
+        restartNeeded: true,
+    },
+    
+    hideMessageFromMessageLoggersDeletedMessage: {
+        default: "redacted eh",
+        type: OptionType.STRING,
+        description: "The message content to replace the message with when using the hide message from message loggers feature.",
     },
 
     messageLimit: {
@@ -535,7 +564,11 @@ export default definePlugin({
 
     patches: [
         {
+<<<<<<< HEAD
             find: 'displayName="MessageStore"',
+=======
+            find: '"MessageStore"',
+>>>>>>> remote/master
             replacement: {
                 match: /LOAD_MESSAGES_SUCCESS:function\(\i\){/,
                 replace: "$&$self.messageLoadSuccess(arguments[0]);",
@@ -553,6 +586,7 @@ export default definePlugin({
 
         {
             find: "toolbar:function",
+            predicate: () => settings.store.ShowLogsButton,
             replacement: {
                 match: /(function \i\(\i\){)(.{1,200}toolbar.{1,100}mobileToolbar)/,
                 replace: "$1$self.addIconToToolBar(arguments[0]);$2",
@@ -871,6 +905,7 @@ const contextMenuPath: NavContextMenuPatchCallback = (children, props) => {
                                     .catch(() =>
                                         Toasts.show({
                                             type: Toasts.Type.FAILURE,
+<<<<<<< HEAD
                                             message:
 													"Failed to remove message",
                                             id: Toasts.genId(),
@@ -880,6 +915,45 @@ const contextMenuPath: NavContextMenuPatchCallback = (children, props) => {
                         />
                     </>
                 )}
+=======
+                                            message: "Failed to remove message",
+                                            id: Toasts.genId()
+                                        }))
+
+                                }
+                            />
+                        </>
+                    )
+                }
+
+                {
+                    settings.store.hideMessageFromMessageLoggers
+                    && props.navId === "message"
+                    && props.message?.author?.id === UserStore.getCurrentUser().id
+                    && props.message?.deleted === false
+                    && (
+                        <>
+                            <Menu.MenuSeparator />
+                            <Menu.MenuItem
+                                id="hide-from-message-loggers"
+                                label="Delete Message (Hide From Message Loggers)"
+                                color="danger"
+
+                                action={async () => {
+                                    await MessageActions.deleteMessage(props.message.channel_id, props.message.id);
+                                    MessageActions._sendMessage(props.message.channel_id, {
+                                        "content": settings.store.hideMessageFromMessageLoggersDeletedMessage,
+                                        "tts": false,
+                                        "invalidEmojis": [],
+                                        "validNonShortcutEmojis": []
+                                    }, { nonce: props.message.id });
+                                }}
+
+                            />
+                        </>
+                    )
+                }
+>>>>>>> remote/master
 
                 {settings.store.hideMessageFromMessageLoggers &&
 					props.navId === "message" &&
